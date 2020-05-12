@@ -24,7 +24,7 @@ def reset():
     obs = env.reset()
 
     if hasattr(env, 'mission'):
-        print('Mission: %s' % env.mission)
+      #  print('Mission: %s' % env.mission)
         window.set_caption(env.mission)
 
     redraw(obs)
@@ -41,6 +41,8 @@ ACTION_IDX = {
 
 def step(action):
 
+
+    print("HIII ",action)
     step = 0
     obs, reward, done, info = env.step(action)
     print('step=%s, reward=%.2f' % (env.step_count, reward))
@@ -53,8 +55,8 @@ def step(action):
 
     input_state = rdf(o)
 
-    print("***********************input state*********************************** ")
-    print(input_state)
+    #print("***********************input state*********************************** ")
+    #print(input_state)
     input_rdf = {}
     for s, p, o in input_state:
         if p in list(input_rdf.keys()):
@@ -62,14 +64,14 @@ def step(action):
         else:
             # l = [[s, o]]
             input_rdf[p] = [o]
-    print(input_rdf)
+   # print(input_rdf)
     leaf_state = []
     dTree.root.reward = reward
 
     state = dTree.root.traverse(input_rdf, leaf_state)
 
     # action = state_node.assertAction
-
+   
     while not done:
         # key_handler.key = action
         redraw(obs)
@@ -77,13 +79,13 @@ def step(action):
         step += 1
 
         # get the action at current state
-        print("Action to Take: ", state.assertAction)
+        #print("Action to Take: ", state.assertAction)
         action = state.assertAction
 
         #get the next state
 
         obs_next, reward, done, info = env.step(ACTION_IDX[action])
-        print('step=%s, reward=%.2f' % (env.step_count, reward))
+        #print('step=%s, reward=%.2f' % (env.step_count, reward))
 
         reward = reward if not done else -reward
 
@@ -91,7 +93,7 @@ def step(action):
         o = o.transpose()
         o = preprocess(o)
         input_state = rdf(o)
-        print(input_state)
+        #print(input_state)
 
         input_rdf = {}
         for s, p, o in input_state:
@@ -100,7 +102,7 @@ def step(action):
             else:
                 # l = [[s, o]]
                 input_rdf[p] = [o]
-        print(input_rdf)
+        #print(input_rdf)
 
         leaf_state = []         # default
         state.reward = reward
@@ -121,15 +123,10 @@ def step(action):
 
         if done:
             print("done")
+            reset()
             break;
+    return step
 
-    # old code
-
-    if done:
-        print('done!')
-        reset()
-    else:
-        redraw(obs)
 
 # Map of object type to integers old
 OBJECT_TO_IDX_OLD = {
@@ -269,6 +266,15 @@ def key_handler(event):
     if event.key == 'enter':
         step(env.actions.done)
         return
+    if event.key == 'a':
+        noOfAttempts = 0
+        for i in range (100):
+            action = random.randint(0, len(ACTION_TO_IDX)-1)
+            noOfAttempts = noOfAttempts + step(action)
+            print("average steps to reach the goal ",noOfAttempts/(i+1))
+        return
+
+   
 
 ACTION_TO_IDX = {
     0 : 'left',
@@ -351,16 +357,18 @@ class TreeNode:
 
     def print(self):
         if self.nodeType == 0:
-            print("Test node ", self.predicate, self.obj)
+            print("")
+            #print("Test node ", self.predicate, self.obj)
         else:
-            print("Leaf Node ", self.assertAction, self.expression, self.Q_val)
+            print("")
+            #print("Leaf Node ", self.assertAction, self.expression, self.Q_val)
         if self.yes:
             self.yes.print()
         if self.no:
             self.no.print()
 
     def q_update(self, next_state, action, flag):
-        print("-------Inside Q-update function--------")
+        #print("-------Inside Q-update function--------")
         # print("Old State: ", self.expression, " Q-val: ", self.Q_val_list)
         # print("Action : ", ACTION_TO_IDX[action])
         # print("Next State: ", next_state.expression, "Q-val: ", next_state.Q_val_list)
@@ -377,7 +385,7 @@ class TreeNode:
         )
         m = max(self.Q_val_list)
         l = [i for i, j in enumerate(self.Q_val_list) if j == m]
-        print("set of max value action : ", l)
+        #print("set of max value action : ", l)
         # action = self.Q_val_list.index(max(self.Q_val_list))
         if len(l) > 1:
             action = random.choice(l)
@@ -422,9 +430,9 @@ class TreeNode:
     def traverse(self, predList, state_exp):
         if self.nodeType == 1:
             self.expression = state_exp
-            print("LEAF NODE FOUND, @ State ", self.expression)
+           # print("LEAF NODE FOUND, @ State ", self.expression)
             self.get_action()
-            print("Q-Value State Action Pair: ", self.Q_val, self.assertAction)
+            #print("Q-Value State Action Pair: ", self.Q_val, self.assertAction)
             return self
 
         # predFound = 0
@@ -496,7 +504,7 @@ def create_tree():
     left.insert("no", [], " ")
 
     # root_node.print()
-    dtree.root.print()
+   # dtree.root.print()
     # return root_node
     return dtree
 
