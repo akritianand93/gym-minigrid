@@ -1084,7 +1084,9 @@ class MiniGridEnv(gym.Env):
     def step(self, action):
         self.step_count += 1
 
-        reward = 1
+        # TODO: experiment with constant reward of -1 and give 0 on reaching goal
+        #       remove augmented reward
+        reward = -1
         done = False
 
         # Get the position in front of the agent
@@ -1096,19 +1098,21 @@ class MiniGridEnv(gym.Env):
         # Rotate left
         if action == self.actions.left:
             self.agent_dir -= 1
-            if fwd_cell != None and \
-                    ((fwd_cell.can_pickup() and not self.carrying)\
-                    or (fwd_cell.type == 'goal' or fwd_cell.type == 'lava')):
-                reward = -reward
+            # if fwd_cell != None and \
+            #         ((fwd_cell.can_pickup() and not self.carrying)\
+            #         or (fwd_cell.type == 'goal' or fwd_cell.type == 'lava')):
+            #         # or fwd_cell.can_overlap()):
+            #     reward = -reward
             if self.agent_dir < 0:
                 self.agent_dir += 4
 
         # Rotate right
         elif action == self.actions.right:
-            if fwd_cell != None and \
-                    ((fwd_cell.can_pickup() and not self.carrying)\
-                    or (fwd_cell.type == 'goal' or fwd_cell.type == 'lava')):
-                reward = -reward
+            # if fwd_cell != None and \
+            #         ((fwd_cell.can_pickup() and not self.carrying)\
+            #         or (fwd_cell.type == 'goal' or fwd_cell.type == 'lava')):
+            #         # or fwd_cell.can_overlap()):
+            #     reward = -reward
             self.agent_dir = (self.agent_dir + 1) % 4
 
 
@@ -1121,9 +1125,10 @@ class MiniGridEnv(gym.Env):
                 reward = self._reward()
             if fwd_cell != None and fwd_cell.type == 'lava':
                 done = True
-            if fwd_cell != None and ((fwd_cell.can_pickup() and not self.carrying) or\
-                    (fwd_cell.type != 'goal' or fwd_cell.type != 'lava')):
-                reward = -reward
+            # if (fwd_cell != None and ((fwd_cell.can_pickup() and not self.carrying) or\
+            #         (fwd_cell.type != 'goal' or fwd_cell.type != 'lava'))):
+            #         # or fwd_cell.can_overlap())):
+            #     reward = -reward
 
         # Pick up an object
         elif action == self.actions.pickup:
@@ -1132,8 +1137,8 @@ class MiniGridEnv(gym.Env):
                     self.carrying = fwd_cell
                     self.carrying.cur_pos = np.array([-1, -1])
                     self.grid.set(*fwd_pos, None)
-            else:
-                reward = -reward
+            # else:
+            #     reward = -reward
 
         # Drop an object
         elif action == self.actions.drop:
@@ -1141,31 +1146,26 @@ class MiniGridEnv(gym.Env):
                 self.grid.set(*fwd_pos, self.carrying)
                 self.carrying.cur_pos = fwd_pos
                 self.carrying = None
-            else:
-                reward = -reward
+            # else:
+            #     reward = -reward
 
         # Toggle/activate an object
         elif action == self.actions.toggle:
             if fwd_cell:
                 fwd_cell.toggle(self, fwd_pos)
-            else:
-                reward = -reward
+            # else:
+            #     reward = -reward
 
         # Done action (not used by default)
         elif action == self.actions.done:
+            # set reward to 0
+            reward = 0
             pass
-
         else:
             assert False, "unknown action"
 
         # if self.step_count >= self.max_steps:
         #     done = True
-
-
-        # TODO ---> '''
-        #  1. negative reward per action (same const val for each action),
-        #  2. setting 0 reward
-        #  3. q-val to have some +ve val '''
 
         obs = self.gen_obs()
 

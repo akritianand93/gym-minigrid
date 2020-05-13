@@ -43,15 +43,14 @@ ACTION_IDX = {
 
 def step(action):
 
-    # <<<<<<< Updated upstream
-
     print("HIII ", action)
-    # =======
-    ## run it for 100-200 several runs
 
-    # reward = 1
+    # TODO: 1. experiment with constant reward of -1 and give 0 on reaching goal.
+    #       2. work on the tree to fill the gaps so that it doesn't get stuck.  => to discuss
+    #       3. stop the iteration after some max_step
+    #       4. Once these works, try the idea of discarding any q-update on reaching max-steps. (cloneTree)
+    # run it for 100-200 several runs
 
-    #  Stashed changes
     step = 0
     obs, reward, done, info = env.step(action)
     # print('step=%s, reward=%.2f' % (env.step_count, reward))
@@ -76,27 +75,26 @@ def step(action):
             input_rdf[p] = [o]
    # print(input_rdf)
     leaf_state = []
-    dTree.root.reward = reward
+    # dTree.root.reward = reward
+
+    # temp_root = dTree.root.cloneTree()
 
     state = dTree.root.traverse(input_rdf, leaf_state)
 
-    # action = state_node.assertAction
-   
     while not done:
         # key_handler.key = action
         brk_flag = window.reg_key_handler(esc_key)
         if brk_flag:
             return
-
         redraw(obs)
 
         step += 1
 
         # get the action at current state
-        #print("Action to Take: ", state.assertAction)
+        # print("Action to Take: ", state.assertAction)
         action = state.assertAction
 
-        #get the next state
+        # get the next state
 
         obs_next, reward, done, info = env.step(ACTION_IDX[action])
         # print('step=%s, reward=%.2f' % (env.step_count, reward))
@@ -108,20 +106,19 @@ def step(action):
         o = o.transpose()
         o = preprocess(o)
         input_state = rdf(o)
-        #print(input_state)
+        # print(input_state)
 
         input_rdf = {}
         for s, p, o in input_state:
             if p in list(input_rdf.keys()):
                 input_rdf[p].append(o)
             else:
-                # l = [[s, o]]
                 input_rdf[p] = [o]
-        #print(input_rdf)
+        # print(input_rdf)
 
         leaf_state = []         # default
         state.reward = reward
-        # next_state = dTree.root.traverse(input_state, leaf_state)
+
         next_state = dTree.root.traverse(input_rdf, leaf_state)
         # print("Before Q-update: ", next_state.assertAction)
         #
@@ -133,12 +130,20 @@ def step(action):
         state = next_state
         obs = obs_next
 
-        # action = state_node.assertAction
-        # if action is None:
-        #     action = random.randint(0, len(ACTION_TO_IDX)-1)
+        # break if the number of steps exceed 10k for a Run
+        if env.step_count > 10000:
+            print('step=%s, reward=%.2f' % (env.step_count, reward))
+            print("Not Done!!!")
+            RUN_REWARD.append(reward)
+            RUN_STEP.append(env.step_count)
+            reset()
+            break;
 
         if done:
+            print('step=%s, reward=%.2f' % (env.step_count, reward))
             print("done")
+            RUN_REWARD.append(reward)
+            RUN_STEP.append(env.step_count)
             reset()
             break;
     return step
@@ -292,15 +297,12 @@ def key_handler(event):
         for i in range (100):
             action = random.randint(0, len(ACTION_TO_IDX)-1)
             t_noOfAttempts = noOfAttempts
-            num_steps = 0
-            # logging.info('Starting Run#: %s, At Step: %s', str(i), str(num_steps))
-            noOfAttempts = noOfAttempts + step(action)
-            num_steps = noOfAttempts - t_noOfAttempts
+            noOfAttempts = noOfAttempts + step(action) + 1
+            num_steps = noOfAttempts - t_noOfAttempts + 1
             print("Run #: ", i, "Took Steps: ", num_steps)
             print("average steps to reach the goal ", noOfAttempts/(i+1))
             logging.info('Run #: %s, Took Steps: %s', str(i), str(num_steps))
             logging.info('Average Steps to Reach Goal: %s', str(noOfAttempts / (i+1)))
-            RUN_STEP.append(num_steps)
         return
 
 ACTION_TO_IDX = {
@@ -314,7 +316,8 @@ ACTION_TO_IDX = {
 }
 
 RUN_STEP = []
-DISCOUNT_FACTOR = 0.3
+RUN_REWARD = []
+DISCOUNT_FACTOR = 0.9     # D0513
 LEARNING_RATE = 0.001
 
 MEMORY_SIZE = 1000
@@ -339,6 +342,7 @@ class Tree:
             self.cnt = 0
         elif self.randFlag:
             self.cnt += 1
+
 
 class TreeNode:
     def __init__(self, predicate, obj, n=0, assertAction=""):
@@ -464,6 +468,18 @@ class TreeNode:
 
         return node
 
+    def cloneTree(self):
+        if self.nodeType == 0:
+            tempNode = TreeNode(self.predicate, self.obj)
+            tempNode.yes = self.yes.cloneTree()
+            tempNode.no = self.no.cloneTree()
+        else:
+            tempNode = TreeNode("", "", self.nodeType, self.assertAction)
+            tempNode.expression = self.expression
+            tempNode.Q_val_list = self.Q_val_list
+            tempNode.Q_val = self.Q_val
+        return tempNode
+
 def create_tree():
     dtree = Tree()
     dtree.root = TreeNode("visible", "key")
@@ -553,4 +569,10 @@ if len(RUN_STEP) > 0:
     plt.xlabel("Run #")
     plt.ylabel("Number of Steps Taken")
     plt.savefig('run-vs-step-graph.png')
+    plt.show()
+
+    plt.plot(range(0, len(RUN_STEP)), RUN_REWARD)
+    plt.xlabel("Run #")
+    plt.ylabel("Reward")
+    plt.savefig('run-vs-reward-graph.png')
     plt.show()
