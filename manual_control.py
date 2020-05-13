@@ -7,9 +7,11 @@ from collections import deque
 import gym
 import gym_minigrid
 # from scores.score_logger import ScoreLogger
+import matplotlib.pyplot as plt
 import random
 from gym_minigrid.wrappers import *
 from gym_minigrid.window import Window
+import logging
 
 def redraw(img):
     if not args.agent_view:
@@ -41,11 +43,19 @@ ACTION_IDX = {
 
 def step(action):
 
+    # <<<<<<< Updated upstream
 
-    print("HIII ",action)
+    print("HIII ", action)
+    # =======
+    ## run it for 100-200 several runs
+
+    # reward = 1
+
+    #  Stashed changes
     step = 0
     obs, reward, done, info = env.step(action)
-    print('step=%s, reward=%.2f' % (env.step_count, reward))
+    # print('step=%s, reward=%.2f' % (env.step_count, reward))
+    logging.info('step=%s, reward=%s', env.step_count, str(reward))
 
     # new code
     o = obs["image"]
@@ -74,6 +84,10 @@ def step(action):
    
     while not done:
         # key_handler.key = action
+        brk_flag = window.reg_key_handler(esc_key)
+        if brk_flag:
+            return
+
         redraw(obs)
 
         step += 1
@@ -85,9 +99,10 @@ def step(action):
         #get the next state
 
         obs_next, reward, done, info = env.step(ACTION_IDX[action])
-        #print('step=%s, reward=%.2f' % (env.step_count, reward))
+        # print('step=%s, reward=%.2f' % (env.step_count, reward))
+        logging.info('step=%s, reward=%s', env.step_count, str(reward))
 
-        reward = reward if not done else -reward
+        # reward = reward if not done else -reward
 
         o = obs_next["image"]
         o = o.transpose()
@@ -110,7 +125,8 @@ def step(action):
         next_state = dTree.root.traverse(input_rdf, leaf_state)
         # print("Before Q-update: ", next_state.assertAction)
         #
-        if (step % 300) == 0:
+        # D0511
+        if (step % 200) == 0 and state.Q_val_list == next_state.Q_val_list:
             dTree.randFlag = True
         dTree.remember(state, ACTION_IDX[action], reward, next_state, done)
 
@@ -230,6 +246,11 @@ def rdf(o):
         # print((s, p, o))
     return state
 
+def esc_key(event):
+    if event.key == 'escape':
+        # reset()
+        window.close()
+        return True
 
 def key_handler(event):
     print('pressed', event.key)
@@ -270,11 +291,17 @@ def key_handler(event):
         noOfAttempts = 0
         for i in range (100):
             action = random.randint(0, len(ACTION_TO_IDX)-1)
+            t_noOfAttempts = noOfAttempts
+            num_steps = 0
+            # logging.info('Starting Run#: %s, At Step: %s', str(i), str(num_steps))
             noOfAttempts = noOfAttempts + step(action)
-            print("average steps to reach the goal ",noOfAttempts/(i+1))
+            num_steps = noOfAttempts - t_noOfAttempts
+            print("Run #: ", i, "Took Steps: ", num_steps)
+            print("average steps to reach the goal ", noOfAttempts/(i+1))
+            logging.info('Run #: %s, Took Steps: %s', str(i), str(num_steps))
+            logging.info('Average Steps to Reach Goal: %s', str(noOfAttempts / (i+1)))
+            RUN_STEP.append(num_steps)
         return
-
-   
 
 ACTION_TO_IDX = {
     0 : 'left',
@@ -286,6 +313,7 @@ ACTION_TO_IDX = {
     6 : 'enter'
 }
 
+RUN_STEP = []
 DISCOUNT_FACTOR = 0.3
 LEARNING_RATE = 0.001
 
@@ -368,7 +396,8 @@ class TreeNode:
             self.no.print()
 
     def q_update(self, next_state, action, flag):
-        #print("-------Inside Q-update function--------")
+        # print("-------Inside Q-update function--------")
+        logging.info("-------Inside Q-update function--------")
         # print("Old State: ", self.expression, " Q-val: ", self.Q_val_list)
         # print("Action : ", ACTION_TO_IDX[action])
         # print("Next State: ", next_state.expression, "Q-val: ", next_state.Q_val_list)
@@ -385,7 +414,9 @@ class TreeNode:
         )
         m = max(self.Q_val_list)
         l = [i for i, j in enumerate(self.Q_val_list) if j == m]
-        #print("set of max value action : ", l)
+        dpstr = str(l).strip('[]')
+        logging.info('set of max value action : %s', dpstr)
+        # print("set of max value action : ", l)
         # action = self.Q_val_list.index(max(self.Q_val_list))
         if len(l) > 1:
             action = random.choice(l)
@@ -403,54 +434,15 @@ class TreeNode:
             self.assertAction = ACTION_TO_IDX[action]
             # self.assertactn = self.assertAction
 
-        ''' ------------------------------- temp comment added code to q-update fnction ------------    
-        else:            
-            # past,
-            # do an q-update
-            # 1. get max of Q_val from possible states with each action
-            # let's default that with some value now
-            max_val = 0.1
-            # TODO --> calculate the 'estimate of optimal future value'
-            # QUESTION  (TODO) ---> is the understanding correct for the calculation?
-            # Are we going to do a test here to take which predicate to split and create 'yes'
-            # and 'no' child to get their Q-val and see if there are any changes in the Q-val-vec of child.
-            # If parent/child Q_val-vec remains same, we don't split, 
-            # otherwise we split the node, and get the MAX Q-val for future val from the child nodes.
-
-            for i in range(len(self.Q_val_list)):
-                self.Q_val_list[i] = self.Q_val_list[i] + self.learning_rate * (
-                    self.reward + self.discount_fact * max_val - self.Q_val_list[i]
-                )
-            action = self.Q_val_list.index(max(self.Q_val_list))
-            self.Q_val = self.Q_val_list[action]
-            self.assertAction = ACTION_TO_IDX[action]
-            # self.assertactn = self.assertAction
-        '''
-
     def traverse(self, predList, state_exp):
         if self.nodeType == 1:
             self.expression = state_exp
-           # print("LEAF NODE FOUND, @ State ", self.expression)
+            # print("LEAF NODE FOUND, @ State ", self.expression)
+            logging.info('LEAF NODE FOUND, @ State: %s', self.expression)
             self.get_action()
-            #print("Q-Value State Action Pair: ", self.Q_val, self.assertAction)
+            # print("Q-Value State Action Pair: ", self.Q_val, self.assertAction)
+            logging.info('Q-Value State Action Pair: %s %s', self.Q_val, self.assertAction)
             return self
-
-        # predFound = 0
-        # state_exp = []
-        #
-        # for s, p, o in predList:
-        #     if self.predicate == p and self.obj == o:
-        #         if self.yes:
-        #             state_exp.append([s, p, o])
-        #             node = self.yes.traverse(predList, state_exp)
-        #         predFound = 1
-        #         # print([s, p, o])
-        #         break;
-        #
-        # if predFound == 0:
-        #     if self.no:
-        #         # state_exp.append([s, p, o])
-        #         node = self.no.traverse(predList, state_exp)
 
         if self.predicate in predList.keys():
             if self.obj in predList[self.predicate]:
@@ -533,11 +525,15 @@ parser.add_argument(
     action='store_true'
 )
 
+# -------------- APIs Call for Processing ---------------------
+
 args = parser.parse_args()
 
 env = gym.make(args.env)
 
 dTree = create_tree()
+
+logging.basicConfig(filename='runlog.log')
 
 if args.agent_view:
     env = RGBImgPartialObsWrapper(env)
@@ -550,3 +546,11 @@ reset()
 
 # Blocking event loop
 window.show(block=True)
+
+#plot the graph
+if len(RUN_STEP) > 0:
+    plt.plot(range(0, len(RUN_STEP)), RUN_STEP)
+    plt.xlabel("Run #")
+    plt.ylabel("Number of Steps Taken")
+    plt.savefig('run-vs-step-graph.png')
+    plt.show()

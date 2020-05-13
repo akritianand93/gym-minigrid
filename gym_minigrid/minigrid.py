@@ -1096,12 +1096,21 @@ class MiniGridEnv(gym.Env):
         # Rotate left
         if action == self.actions.left:
             self.agent_dir -= 1
+            if fwd_cell != None and \
+                    ((fwd_cell.can_pickup() and not self.carrying)\
+                    or (fwd_cell.type == 'goal' or fwd_cell.type == 'lava')):
+                reward = -reward
             if self.agent_dir < 0:
                 self.agent_dir += 4
 
         # Rotate right
         elif action == self.actions.right:
+            if fwd_cell != None and \
+                    ((fwd_cell.can_pickup() and not self.carrying)\
+                    or (fwd_cell.type == 'goal' or fwd_cell.type == 'lava')):
+                reward = -reward
             self.agent_dir = (self.agent_dir + 1) % 4
+
 
         # Move forward
         elif action == self.actions.forward:
@@ -1112,6 +1121,9 @@ class MiniGridEnv(gym.Env):
                 reward = self._reward()
             if fwd_cell != None and fwd_cell.type == 'lava':
                 done = True
+            if fwd_cell != None and ((fwd_cell.can_pickup() and not self.carrying) or\
+                    (fwd_cell.type != 'goal' or fwd_cell.type != 'lava')):
+                reward = -reward
 
         # Pick up an object
         elif action == self.actions.pickup:
@@ -1120,6 +1132,8 @@ class MiniGridEnv(gym.Env):
                     self.carrying = fwd_cell
                     self.carrying.cur_pos = np.array([-1, -1])
                     self.grid.set(*fwd_pos, None)
+            else:
+                reward = -reward
 
         # Drop an object
         elif action == self.actions.drop:
@@ -1127,11 +1141,15 @@ class MiniGridEnv(gym.Env):
                 self.grid.set(*fwd_pos, self.carrying)
                 self.carrying.cur_pos = fwd_pos
                 self.carrying = None
+            else:
+                reward = -reward
 
         # Toggle/activate an object
         elif action == self.actions.toggle:
             if fwd_cell:
                 fwd_cell.toggle(self, fwd_pos)
+            else:
+                reward = -reward
 
         # Done action (not used by default)
         elif action == self.actions.done:
@@ -1142,16 +1160,12 @@ class MiniGridEnv(gym.Env):
 
         # if self.step_count >= self.max_steps:
         #     done = True
-        #
-        # if not done:
-        #     reward = 1.0
+
+
         # TODO ---> '''
         #  1. negative reward per action (same const val for each action),
         #  2. setting 0 reward
         #  3. q-val to have some +ve val '''
-
-        # else:
-        #     reward =
 
         obs = self.gen_obs()
 
