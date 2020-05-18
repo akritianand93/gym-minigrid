@@ -12,6 +12,9 @@ import random
 from gym_minigrid.wrappers import *
 from gym_minigrid.window import Window
 import logging
+from decision_tree import create_tree
+from decision_tree import Tree
+from decision_tree import TreeNode
 
 def redraw(img):
     if not args.agent_view:
@@ -130,22 +133,23 @@ def step(action):
         state = next_state
         obs = obs_next
 
-        # break if the number of steps exceed 10k for a Run
-        if env.step_count > 10000:
+        if done:
+            print("Done")
             print('step=%s, reward=%.2f' % (env.step_count, reward))
-            print("Not Done!!!")
             RUN_REWARD.append(reward)
             RUN_STEP.append(env.step_count)
             reset()
             break;
 
-        if done:
+            # break if the number of steps exceed 10k for a Run
+        if env.step_count > 5500:
+            print("Not Done!!!")
             print('step=%s, reward=%.2f' % (env.step_count, reward))
-            print("done")
             RUN_REWARD.append(reward)
             RUN_STEP.append(env.step_count)
             reset()
             break;
+
     return step
 
 
@@ -325,196 +329,6 @@ BATCH_SIZE = 20
 
 ROOT_FLAG = False
 
-class Tree:
-    def __init__(self):
-        self.root = None
-        # self.old_state = None   #store the leafnode
-        self.memory = deque(maxlen=MEMORY_SIZE)
-        self.isFit = False
-        self.randFlag = False
-        self.cnt = 0
-
-    def remember(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
-        state.q_update(next_state, action, self.randFlag)
-        if self.randFlag and self.cnt < 50:
-            self.randFlag = False
-            self.cnt = 0
-        elif self.randFlag:
-            self.cnt += 1
-
-
-class TreeNode:
-    def __init__(self, predicate, obj, n=0, assertAction=""):
-
-        self.nodeType = n  ##  test, 1 -> #leaf
-        self.parent = None
-        self.yes = None
-        self.no = None
-        self.reward = 0
-        self.learning_rate = LEARNING_RATE
-        self.discount_fact = DISCOUNT_FACTOR
-        self.last_state = []
-        self.assertactn = " "
-
-        # for test nodes
-        if self.nodeType == 0:
-            self.predicate = predicate
-            self.obj = obj
-
-        # for leaf nodes
-        else:
-            self.expression = []
-            self.assertAction = assertAction
-            self.Q_val = 50
-            # TODo
-            self.Q_val_list = list(50 for i in range(len(ACTION_TO_IDX)))
-
-    def insert(self, side, val, assertAction=" "):
-        # Compare the new value with the parent node
-        if len(val) != 0:
-            if side == "yes":
-                self.yes = TreeNode(val[0], val[1])
-                self.yes.parent = self
-            else:
-                self.no = TreeNode(val[0], val[1])
-                self.no.parent = self
-        else:
-            if side == "yes":
-                self.yes = TreeNode("", "", 1, assertAction)
-                self.yes.parent = self
-            else:
-                self.no = TreeNode("", "", 1, assertAction)
-                self.yes.parent = self
-
-    def print(self):
-        if self.nodeType == 0:
-            print("")
-            #print("Test node ", self.predicate, self.obj)
-        else:
-            print("")
-            #print("Leaf Node ", self.assertAction, self.expression, self.Q_val)
-        if self.yes:
-            self.yes.print()
-        if self.no:
-            self.no.print()
-
-    def q_update(self, next_state, action, flag):
-        # print("-------Inside Q-update function--------")
-        logging.info("-------Inside Q-update function--------")
-        # print("Old State: ", self.expression, " Q-val: ", self.Q_val_list)
-        # print("Action : ", ACTION_TO_IDX[action])
-        # print("Next State: ", next_state.expression, "Q-val: ", next_state.Q_val_list)
-
-        if flag:
-            action = random.randint(0, len(ACTION_TO_IDX) - 1)
-            self.assertAction = ACTION_TO_IDX[action]
-            return
-
-        # TODO --> calculate the 'estimate of optimal future value'
-        #     q_update = reward
-        self.Q_val_list[action] = self.Q_val_list[action] + self.learning_rate * (
-            self.reward + self.discount_fact * max(next_state.Q_val_list) - self.Q_val_list[action]
-        )
-        m = max(self.Q_val_list)
-        l = [i for i, j in enumerate(self.Q_val_list) if j == m]
-        dpstr = str(l).strip('[]')
-        logging.info('set of max value action : %s', dpstr)
-        # print("set of max value action : ", l)
-        # action = self.Q_val_list.index(max(self.Q_val_list))
-        if len(l) > 1:
-            action = random.choice(l)
-        else:
-            action = l[0]
-
-        self.Q_val = self.Q_val_list[action]
-        self.assertAction = ACTION_TO_IDX[action]
-
-    def get_action(self):
-        # todo normalize the q-val, and randomize at periodic time
-        if self.assertAction == " ":
-            # select random action
-            action = random.randint(0, len(ACTION_TO_IDX)-1)
-            self.assertAction = ACTION_TO_IDX[action]
-            # self.assertactn = self.assertAction
-
-    def traverse(self, predList, state_exp):
-        if self.nodeType == 1:
-            self.expression = state_exp
-            # print("LEAF NODE FOUND, @ State ", self.expression)
-            logging.info('LEAF NODE FOUND, @ State: %s', self.expression)
-            self.get_action()
-            # print("Q-Value State Action Pair: ", self.Q_val, self.assertAction)
-            logging.info('Q-Value State Action Pair: %s %s', self.Q_val, self.assertAction)
-            return self
-
-        if self.predicate in predList.keys():
-            if self.obj in predList[self.predicate]:
-                p = self.predicate
-                for i in range(len(predList[p])):
-                    if predList[p][i] == self.obj:
-                        o = predList[p][i]
-                if self.yes:
-                    state_exp.append([p, o])
-                    node = self.yes.traverse(predList, state_exp)
-            else:
-                if self.no:
-                    node = self.no.traverse(predList, state_exp)
-        else:
-            if self.yes:
-                node = self.yes.traverse(predList, state_exp)
-            else:
-                node = self.no.traverse(predList, state_exp)
-
-        return node
-
-    def cloneTree(self):
-        if self.nodeType == 0:
-            tempNode = TreeNode(self.predicate, self.obj)
-            tempNode.yes = self.yes.cloneTree()
-            tempNode.no = self.no.cloneTree()
-        else:
-            tempNode = TreeNode("", "", self.nodeType, self.assertAction)
-            tempNode.expression = self.expression
-            tempNode.Q_val_list = self.Q_val_list
-            tempNode.Q_val = self.Q_val
-        return tempNode
-
-def create_tree():
-    dtree = Tree()
-    dtree.root = TreeNode("visible", "key")
-    # root_node = TreeNode("visible", "key")
-    dtree.root.insert("yes", ["carrying", "key"])
-    dtree.root.insert("no", [], " ")
-    left = dtree.root.yes
-
-    left.insert("yes", ["visible", "door"])
-    left.insert("no", [], " ")
-
-    left = left.yes
-
-    left.insert("yes", ["locked", "door"])
-    left.insert("no", [], " ")
-
-    left = left.yes
-
-    left.insert("yes", [], " ")
-    left.insert("no", ["visible", "door"])
-
-    right = left.no
-
-    right.insert("yes", ["visible", "goal"])
-    right.insert("no", [], " ")
-
-    left = right.yes
-
-    left.insert("yes", [], " ")
-    left.insert("no", [], " ")
-
-    # root_node.print()
-   # dtree.root.print()
-    # return root_node
-    return dtree
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -548,6 +362,7 @@ args = parser.parse_args()
 env = gym.make(args.env)
 
 dTree = create_tree()
+# dTree.root.print()
 
 logging.basicConfig(filename='runlog.log')
 
@@ -565,11 +380,11 @@ window.show(block=True)
 
 #plot the graph
 if len(RUN_STEP) > 0:
-    plt.plot(range(0, len(RUN_STEP)), RUN_STEP)
-    plt.xlabel("Run #")
-    plt.ylabel("Number of Steps Taken")
-    plt.savefig('run-vs-step-graph.png')
-    plt.show()
+    # plt.plot(range(0, len(RUN_STEP)), RUN_STEP)
+    # plt.xlabel("Run #")
+    # plt.ylabel("Number of Steps Taken")
+    # plt.savefig('run-vs-step-graph.png')
+    # plt.show()
 
     plt.plot(range(0, len(RUN_STEP)), RUN_REWARD)
     plt.xlabel("Run #")
